@@ -1,0 +1,3 @@
+/home/pc/Desktop/tk2k_lib/cmake-build-debug/CMakeFiles/tk2k_lib.dir
+/home/pc/Desktop/tk2k_lib/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/pc/Desktop/tk2k_lib/cmake-build-debug/CMakeFiles/rebuild_cache.dir
