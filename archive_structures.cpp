@@ -110,7 +110,7 @@ std::ostream& operator<<(std::ostream &os, const File &f)
 
 void File::parse( std::fstream &os, uint64_t pos, Folder* parent ) {
     uint8_t buffer[8];
-    os.seekg( pos );
+    os.seekg(pos);
 
     this->alreadySaved = true;
     this->location = pos;

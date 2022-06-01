@@ -1,7 +1,7 @@
 #ifndef CRYPTOGRAPHY_CPP
 #define CRYPTOGRAPHY_CPP
 
-#include "../tk2k_lib/cryptography.h"
+#include "cryptography.h"
 
 #include <cmath>
 #include <cassert>

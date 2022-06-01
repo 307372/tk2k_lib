@@ -57,6 +57,8 @@ public:
 
     // Prints whole archive's useful data onto console
     void recursive_print() const;
+
+    std::string recursive_string() const;
 };
 
 #endif // ARCHIVE_H

@@ -49,7 +49,11 @@ namespace model {
             std::vector<std::vector<uint32_t>> rr(256, std::vector<uint32_t>(256, 0));
 
             uint64_t max = UINT32_MAX;
-            for (uint16_t i = 0; i < 256; i++) for (uint16_t j = 0; j < 256; j++) rr[i][j] = 0;   // zeroing rr
+            for (uint16_t i = 0; i < 256; i++) {
+                for (uint16_t j = 0; j < 256; j++) {
+                    rr[i][j] = 0;   // zeroing rr
+                }
+            }
             for (auto &i : r) i = 0;   // zeroing r
 
             uint8_t previous_char = text[0];
@@ -63,18 +67,23 @@ namespace model {
             for (uint16_t i = 0; i < 256; ++i)
                 for (uint16_t j = 0; j < 256; ++j) {
                     bool less_than_one = false;
-                    if ((long double) rr[i][j] * (long double) max / (long double) r[i] < 1 and
-                        rr[i][j] != 0)
-                        less_than_one = true;
-                    rr[i][j] = (uint32_t) (roundl((long double) rr[i][j] * (long double) max / (long double) r[i]));
+                    if (rr[i][j] != 0) {
+                        long double scaled =
+                                static_cast<long double>(rr[i][j])
+                                * static_cast<long double>(max)
+                                / static_cast<long double>(r[i]);
+                        if (scaled < 1) less_than_one = true;
+                        rr[i][j] = (uint32_t) (roundl(scaled));
+                    }
                     if (less_than_one) assert(rr[i][j] != 0);
                 }
 
             // compensating for rounding errors
             for (uint16_t i = 0; i < 256; i++) {
                 std::vector<uint32_t> *current_r = &rr[i];
-                int64_t diff = (int64_t) UINT32_MAX -
-                               (int64_t) std::accumulate(std::begin(*current_r), std::end(*current_r), 0ull);
+                int64_t diff1 = (int64_t) UINT32_MAX;
+                int64_t diff2 = (int64_t) std::accumulate(std::begin(*current_r), std::end(*current_r), 0ull);
+                int64_t diff = diff1 - diff2;
                 if (diff == UINT32_MAX or diff == 0)
                     continue;  // if vector is empty or sum of its element is exacly what we want, continue
                 else if (diff < 0) {
@@ -113,6 +122,7 @@ namespace model {
 
             normalize_frequencies(r, max, text_size);
 
+
             assert(std::accumulate(r.begin(), r.end(), 0ull) == max);
             return r;
         }
@@ -122,10 +132,7 @@ namespace model {
         std::vector<uint64_t> memoryless( uint8_t text[], uint32_t text_size )
         {
             assert(text_size != 0);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wshift-count-overflow"
-            uint64_t max = 1l<<32;
-#pragma clang diagnostic pop
+            uint64_t max = 1ull<<32;
 
             std::vector<uint64_t> r(256,0);
 

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <iostream>
 #include <utility>
+#include <sstream>
 
 
 Archive::Archive() : root_folder(std::make_unique<Folder>()) {}
@@ -222,4 +223,10 @@ File* Archive::add_file_to_archive_model(Folder &parent_dir, const std::string& 
 void Archive::recursive_print() const {
     root_folder->recursive_print( std::cout );
     std::cout << std::endl;
+}
+
+std::string Archive::recursive_string() const {
+    std::stringstream ss;
+    root_folder->recursive_print(ss);
+    return ss.str();
 }

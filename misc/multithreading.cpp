@@ -12,6 +12,7 @@
 #include <sstream>
 #include <random>
 #include <filesystem>
+#include <iostream>
 
 #include "../integrity_validation.h"
 #include "../compression.h"
@@ -100,7 +101,7 @@ namespace multithreading
     {
         assert( output.is_open() );
         uint32_t next_to_write = 0;  // index of last written block of data in comp_v
-        *compressed_size = 0;
+        if (task == multithreading::mode::compress) *compressed_size = 0;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         while ( next_to_write != block_count )
         {
@@ -151,7 +152,7 @@ namespace multithreading
                 {
                     new_checksum = iv.get_SHA256_from_stream(output, aborting_var);
                 }
-
+                std::cout << "new checksum == old one?\n" << new_checksum << "\n" << checksum << std::endl;
 
                 if (new_checksum == checksum) {
                     *successful = true;
@@ -181,17 +182,17 @@ namespace multithreading
     // key in the beginning is PBKDF2(pw), and is swapped with the random one before worker threads are started
     // metadata starts empty, and then is extracted from a file */
     {
-        assert( task == mode::compress xor task == mode::decompress );
+        assert(task == mode::compress xor task == mode::decompress);
         assert(archive_stream.is_open());
-        assert(std::filesystem::exists(target_path));
+        //assert(std::filesystem::exists(target_path));
 
         std::bitset<16> bin_flags = flags;
         uint32_t block_size = 1 << 24;  // 2^24 Bytes = 16 MiB, default block size
 
-        if ( bin_flags[9]  ) block_size >>= 1;
-        if ( bin_flags[10] ) block_size >>= 2;
-        if ( bin_flags[11] ) block_size >>= 4;
-        if ( bin_flags[12] ) block_size >>= 8;
+        if (bin_flags[9]) block_size >>= 1;
+        if (bin_flags[10]) block_size >>= 2;
+        if (bin_flags[11]) block_size >>= 4;
+        if (bin_flags[12]) block_size >>= 8;
 
 
 

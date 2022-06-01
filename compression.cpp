@@ -54,7 +54,10 @@ void Compression::load_part(std::fstream &input, uint64_t text_size, uint32_t pa
 
 
 void Compression::save_text(std::fstream &output) {
-    if (!*aborting_var) output.write((char*)(this->text), this->size);
+    if (!*aborting_var) {
+        output.write((char*)(this->text), this->size);
+        output.flush();
+    }
 }
 
 
@@ -1088,10 +1091,7 @@ void Compression::rANS_make()
         CMF[i + 1] = CMF[i] + PMF[i];                   // calculating cumulative probabilities
     }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wshift-count-overflow"
-    uint64_t state = 1l << 32;                          // state
-#pragma clang diagnostic pop
+    uint64_t state = 1ull << 32;                          // state
 
     if (*aborting_var) return;
 
