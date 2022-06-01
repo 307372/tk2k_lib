@@ -5,7 +5,6 @@
 
 #include <cmath>
 #include <cassert>
-#include <immintrin.h>
 
 #include "integrity_validation.h"
 
@@ -147,19 +146,6 @@ namespace crypto {
         }
     }
 
-    namespace CSPRNG
-    {
-        void fill_with_random_data(uint8_t arr[], int64_t arr_size, CryptoPP::AutoSeededX917RNG<CryptoPP::AES>& gen, int64_t start, int64_t stop)
-        {
-            if (stop < 0 or stop >= arr_size)
-                stop = arr_size-1;
-
-            if (arr_size < 0 or start > stop)
-                return;
-
-            gen.GenerateBlock(arr + start, stop-start+1);
-        }
-    }
     namespace PRNG
     {
         void fill_with_random_data(uint8_t arr[], int64_t arr_size, std::mt19937& gen, int64_t start, int64_t stop)

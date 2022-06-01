@@ -7,8 +7,6 @@
 #include <vector>
 #include <bitset>
 
-#include <divsufsort.h> // external library
-
 #include "cryptography.h"
 #include "misc/bitbuffer.h"
 #include "misc/model.h"
@@ -218,7 +216,7 @@ void Compression::MTF_make()
     for (uint32_t i=0; i < textlength and !*aborting_var; i++) {
         // finding current letter's place in alphabet
         uint16_t letter_position = 0;
-        std::_List_iterator<uint8_t> iter = alphabet.begin();
+        auto iter = alphabet.begin(); // changed from std::_List_iterator<uint8_t>
         while( *iter != this->text[i] ) {
             ++letter_position;
             ++iter;
@@ -282,7 +280,7 @@ void Compression::MTF_reverse()
 
     for (uint32_t i=0; i < textlength and !*aborting_var; i++) {
         // finding current letter's place in alphabet
-        std::_List_iterator<uint8_t> iter = alphabet.begin();
+        auto iter = alphabet.begin(); // changed from std::_List_iterator<uint8_t>
         for (uint16_t j=0; j < this->text[i]; ++j) {
             iter++;
         }
@@ -1090,7 +1088,10 @@ void Compression::rANS_make()
         CMF[i + 1] = CMF[i] + PMF[i];                   // calculating cumulative probabilities
     }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshift-count-overflow"
     uint64_t state = 1l << 32;                          // state
+#pragma clang diagnostic pop
 
     if (*aborting_var) return;
 

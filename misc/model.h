@@ -19,7 +19,7 @@ namespace model {
             // making it so that sum_of_freq == upper_limit is the point of this function
             return;
         }
-        for (unsigned long & counter : freq) {
+        for (uint64_t& counter : freq) {
             counter *= upper_limit;
             counter /= sum_of_freq;
         }
@@ -122,7 +122,10 @@ namespace model {
         std::vector<uint64_t> memoryless( uint8_t text[], uint32_t text_size )
         {
             assert(text_size != 0);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshift-count-overflow"
             uint64_t max = 1l<<32;
+#pragma clang diagnostic pop
 
             std::vector<uint64_t> r(256,0);
 

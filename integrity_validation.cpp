@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <bit>
 #include <cmath>
+#include <sstream>
 
 IntegrityValidation::IntegrityValidation()
 : SHA1_num(nullptr), SHA256_num(nullptr), CRC32_num(nullptr) {
