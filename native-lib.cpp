@@ -14,14 +14,53 @@ namespace testing {
                            const std::string &archivePath) {
         std::bitset<16> flags{0};
         flags.set(15); // SHA-1
-        //flags.set(0); // BWT (DC3)
-        //flags.set(1); // MTF
-        //flags.set(2); // RLE
+        flags.set(0); // BWT (DC3)
+        flags.set(1); // MTF
+        flags.set(2); // RLE
         //flags.set(3); // AC (naive)
         //flags.set(4); // AC (better)
         flags.set(5); // rANS
+        flags.set(10); // divide block size 4x
         uint16_t flags_num = (uint16_t) flags.to_ulong();
         archive.add_file_to_archive_model(std::ref(archive.root_folder), filePath, flags_num);
+
+
+        bool fakeAbortingVar = false;
+        archive.save(archivePath, fakeAbortingVar);
+    }
+
+    void createOneFolderArchive(const std::string &archivePath) {
+        archive.add_folder_to_model(archive.root_folder, "test folder");
+
+        bool fakeAbortingVar = false;
+        archive.save(archivePath, fakeAbortingVar);
+    }
+
+    void createComplexTestArchive(
+            Archive &archive,
+            const std::string &filePath1,
+            const std::string &filePath2,
+            const std::string &filePath3,
+            const std::string &archivePath) {
+        // all pointers in root folder and root file must be filled
+
+        std::bitset<16> flags{0};
+        flags.set(15); // SHA-1
+        flags.set(0); // BWT (DC3)
+        flags.set(1); // MTF
+        flags.set(2); // RLE
+        //flags.set(3); // AC (naive)
+        //flags.set(4); // AC (better)
+        flags.set(5); // rANS
+        flags.set(10); // divide block size 4x
+
+
+        uint16_t flags_num = (uint16_t) flags.to_ulong();
+        archive.add_file_to_archive_model(std::ref(archive.root_folder), filePath1, flags_num);
+        archive.add_file_to_archive_model(std::ref(archive.root_folder), filePath2, flags_num);
+
+        std::shared_ptr<Folder>* folder = archive.add_folder_to_model(archive.root_folder, "test folder");
+        archive.add_file_to_archive_model(*folder, filePath3, flags_num);
 
 
         bool fakeAbortingVar = false;
@@ -65,7 +104,6 @@ namespace testing {
     }
 
     std::string testBasic() {
-        createEmptyTextFile();
         std::string name = "text.txt";
         std::string archiveName = "archive";
         std::string dirPath = "/storage/emulated/0/Download/";
@@ -90,9 +128,7 @@ namespace testing {
         return hello.c_str();
     }
     std::string testThings() {
-            //Archive archive;
-            testing::createEmptyTextFile();
-            std::string name = "text.txt";
+            std::string name = "mozilla";
             std::string archiveName = "archive";
             std::string dirPath = "/storage/emulated/0/Download/";
             std::string fileLocation = dirPath + name;
@@ -114,13 +150,74 @@ namespace testing {
             //+ "\nsizeof(uint64_t)==" + std::to_string(sizeof(std::uint64_t));
             //+ "\n\n" + validateIntegrityValidation();//*/
             return output;
-    };
+    }
+
+    std::string testJustLoad() {
+        std::string archiveName = "archive";
+        std::string dirPath = "/storage/emulated/0/Download/";
+        std::string archivePath = dirPath + archiveName + ".tk2k";
+
+        archive.load(archivePath);
+
+        return archive.recursive_string();
+    }
+
+    std::string testJustFolder() {
+        std::string archiveName = "archive";
+        std::string dirPath = "/storage/emulated/0/Download/";
+        std::string archivePath = dirPath + archiveName + ".tk2k";
+
+        createOneFolderArchive(archivePath);
+        archive.close();
+
+        archive.load(archivePath);
+
+        return archive.recursive_string();
+    }
+
+    std::string testComplex() {
+        //Archive archive;
+        testing::createEmptyTextFile();
+        std::string name1 = "empty.txt";
+        std::string name2 = "empty.txt";
+        std::string name3 = "empty.txt";
+        std::string archiveName = "archive";
+        std::string dirPath = "/storage/emulated/0/Download/";
+        std::string fileLocation1 = dirPath + name1;
+        std::string fileLocation2 = dirPath + name2;
+        std::string fileLocation3 = dirPath + name3;
+        std::string archivePath = dirPath + archiveName + ".tk2k";
+        std::string unpackedPath = dirPath + "unpacked/";
+        std::string unpackedFilePath1 = unpackedPath + "archive/" + name1;
+        std::string unpackedFilePath2 = unpackedPath + "archive/" + name2;
+        std::string unpackedFilePath3 = unpackedPath + "archive/" + name3;
+
+        testing::createComplexTestArchive(archive, fileLocation1, fileLocation2, fileLocation3, archivePath);
+        archive.close();
+
+        archive.load(archivePath);
+        bool fakeAbortingVar = false;
+        archive.unpack_whole_archive(unpackedPath, archive.archive_file, fakeAbortingVar);
+        //bool success = isTheSameData(fileLocation, unpackedFilePath);
+
+        std::string output = archive.recursive_string()//;//*
+ //                            + "\n\n" + testing::isTheSameVisual(fileLocation1, unpackedFilePath1)
+ //                            + "\n\n" + testing::isTheSameVisual(fileLocation2, unpackedFilePath2)
+                             + "\n\n" + testing::isTheSameVisual(fileLocation3, unpackedFilePath3);
+        //+ "\nsizeof(uint64_t)==" + std::to_string(sizeof(std::uint64_t));
+        //+ "\n\n" + validateIntegrityValidation();//*/
+        return output;
+    }
+
 }
 
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_example_turbokompresor1999_ArchiveViewActivity_stringFromJNI(JNIEnv *env, jobject thiz) {
-    return env->NewStringUTF(testing::testThings().c_str());
+    //return env->NewStringUTF(testing::testThings().c_str());
+    return env->NewStringUTF(testing::testComplex().c_str());
+    //return env->NewStringUTF(testing::testJustFolder().c_str());
+    //return env->NewStringUTF(testing::testJustLoad().c_str());
 }
 
 

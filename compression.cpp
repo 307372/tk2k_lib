@@ -64,9 +64,9 @@ void Compression::save_text(std::fstream &output) {
 void Compression::BWT_make()    // DC3
 {
     if (*aborting_var) return;
+    if (this->size == 0) return;
 
     uint64_t n = this->size;
-    assert(this->size > 0);
 
     // Generating suffix array (SA)
     uint32_t* SA = nullptr;
@@ -112,6 +112,7 @@ void Compression::BWT_make()    // DC3
 void Compression::BWT_reverse()
 {   // Using L-F mapping
     if (*aborting_var) return;
+    if (size == 0) return;
 
     uint32_t encoded_length = size-4; // subtracting 4 bits due to 4 last bits being starting position
 

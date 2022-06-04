@@ -221,7 +221,7 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
             }
         }
 
-
+        name_length = name.length();
         uint32_t buffer_size = base_metadata_size + name_length;
         auto buffer = new uint8_t[buffer_size];
         uint32_t bi=0; //buffer index
@@ -572,7 +572,6 @@ void Folder::parse(std::fstream &os, uint64_t pos, std::weak_ptr<Folder>& parent
     uint8_t buffer[8];
     os.seekg( pos );
 
-    this->lookup_id = (int64_t) pos;
     this->alreadySaved = true;
     this->location = pos;
     this->name_length = (uint8_t)os.get();
@@ -676,6 +675,7 @@ void Folder::write_to_archive( std::fstream &archive_file, bool& aborting_var ) 
             }
         }
 
+        name_length = name.length();
         uint32_t buffer_size = base_metadata_size+name_length;
         auto buffer = new uint8_t[buffer_size];
         uint32_t bi=0; //buffer index

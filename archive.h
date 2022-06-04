@@ -68,6 +68,7 @@ public:
     void AssignJniLookupId(const std::shared_ptr<ArchiveStructure>& structure);
     void recursiveAddFolderToLookup(std::shared_ptr<Folder>& folder_ptr);
     void recursiveAddFileToLookup(std::shared_ptr<File>& file_ptr);
+    void correct_duplicate_names(File* target_file, Folder* parent_folder);
 
     std::string recursive_string() const;
 };

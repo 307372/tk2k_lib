@@ -234,6 +234,8 @@ void Archive::add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, con
         AssignJniLookupId(parent_dir->child_file_ptr);
     }
 
+    correct_duplicate_names(ptr_new_file, parent_dir.get());
+
     ptr_new_file->flags_value = flags;              // 16 flags represented as 16-bit int
     ptr_new_file->data_location = 0;                // location of data in archive (in bytes) will be added to model right before writing the data
     ptr_new_file->original_size = std::filesystem::file_size( std_path );
@@ -317,4 +319,60 @@ void Archive::AssignJniLookupId(const std::shared_ptr<ArchiveStructure>& structu
 {
     structure->lookup_id = currentLookupId;
     jniLookup[currentLookupId++] = structure;
+}
+
+void Archive::correct_duplicate_names(File* target_file, Folder* parent_folder)
+{
+    std::vector<std::string> name_list;
+    if (parent_folder->child_file_ptr == nullptr) return;
+    else {
+        File* file_in_dir = parent_folder->child_file_ptr.get();
+        name_list.push_back(file_in_dir->name);
+
+        while (file_in_dir->sibling_ptr != nullptr)
+        {
+            file_in_dir = file_in_dir->sibling_ptr.get();
+            name_list.push_back(file_in_dir->name);
+        }
+        std::string new_name = std::filesystem::path(target_file->name).stem().string() + " (";
+        std::string extension = std::filesystem::path(target_file->name).extension().string();
+        uint64_t duplicate_counter = 0;
+        bool unique_name = false;
+
+        while( !unique_name ) {
+            bool found = false;
+            uint64_t names_like_current = 0;
+            for (auto current_name : name_list)
+            {
+                if (duplicate_counter == 0)
+                {
+                    if (target_file->name == current_name)
+                    {
+                        names_like_current++;
+                        if (names_like_current > 1) {
+                            duplicate_counter++;
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    if(new_name + std::to_string(duplicate_counter) + ")" + extension == current_name)
+                    {
+                        duplicate_counter++;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) unique_name = true;
+        }
+
+        if (duplicate_counter > 0)
+        {
+            target_file->name = new_name + std::to_string(duplicate_counter) + ")" + extension;
+            target_file->name_length = target_file->name.length();
+        }
+    }
 }
