@@ -7,6 +7,8 @@
 static Archive archive;
 static IntegrityValidation iv;
 
+
+
 namespace testing {
     void createTestArchive(Archive &archive, const std::string &filePath,
                            const std::string &archivePath) {
@@ -90,7 +92,7 @@ namespace testing {
     std::string testThings() {
             //Archive archive;
             testing::createEmptyTextFile();
-            std::string name = "mozilla";
+            std::string name = "text.txt";
             std::string archiveName = "archive";
             std::string dirPath = "/storage/emulated/0/Download/";
             std::string fileLocation = dirPath + name;
@@ -115,14 +117,55 @@ namespace testing {
     };
 }
 
-
-
-extern "C" JNIEXPORT jstring JNICALL Java_com_example_jnitest_ArchiveViewActivity_stringFromJNI(
-        JNIEnv* env,
-        jobject /* this */)
-{
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_example_turbokompresor1999_ArchiveViewActivity_stringFromJNI(JNIEnv *env, jobject thiz) {
     return env->NewStringUTF(testing::testThings().c_str());
 }
 
 
+jbyteArray stringToJniByteArray(JNIEnv *env, std::string str) {
+    int byteCount = str.length();
+    const jbyte* pNativeMessage = reinterpret_cast<const jbyte*>(str.c_str());
+    jbyteArray bytes = env->NewByteArray(byteCount);
+    env->SetByteArrayRegion(bytes, 0, byteCount, pNativeMessage);
 
+    return bytes;
+}
+
+jobject recursiveFillFileChildren(JNIEnv *env, File* file_ptr);
+
+jobject recursiveFillFolderChildren(JNIEnv *env, Folder* folder_ptr) {
+    if (!folder_ptr) return nullptr;
+    jclass folderClass = env->FindClass("com/example/turbokompresor1999/Folder");
+    jmethodID folderConstructorId = env->GetMethodID(folderClass, "<init>", "([BJ[BLcom/example/turbokompresor1999/Folder;Lcom/example/turbokompresor1999/Folder;Lcom/example/turbokompresor1999/File;)V");
+    jobject folderInstance = env->NewObject(folderClass, folderConstructorId,
+                                            stringToJniByteArray(env, folder_ptr->name),
+                                            (jlong) folder_ptr->lookup_id,
+                                            stringToJniByteArray(env, folder_ptr->path.c_str()),
+                                            recursiveFillFolderChildren(env, folder_ptr->child_dir_ptr.get()),
+                                            recursiveFillFolderChildren(env, folder_ptr->sibling_ptr.get()),
+                                            recursiveFillFileChildren(env, folder_ptr->child_file_ptr.get()));
+    return folderInstance;
+}
+
+jobject recursiveFillFileChildren(JNIEnv *env, File* file_ptr) {
+    if (!file_ptr) return nullptr;
+    jclass fileClass = env->FindClass("com/example/turbokompresor1999/File");
+    jmethodID fileConstructorId = env->GetMethodID(fileClass, "<init>", "([BJ[BSJJLcom/example/turbokompresor1999/File;)V");
+    jobject fileInstance = env->NewObject(fileClass, fileConstructorId,
+                                          stringToJniByteArray(env, file_ptr->name),
+                                          (jlong) file_ptr->lookup_id,
+                                          stringToJniByteArray(env, file_ptr->path),
+                                          (jshort) file_ptr->flags_value,
+                                          (jlong) file_ptr->original_size,
+                                          (jlong) file_ptr->compressed_size,
+                                          recursiveFillFileChildren(env, file_ptr->sibling_ptr.get()));
+    return fileInstance;
+}
+
+extern "C"
+JNIEXPORT jobject JNICALL
+Java_com_example_turbokompresor1999_Archive_pullWholeArchive(JNIEnv *env, jobject thiz) {
+    return recursiveFillFolderChildren(env, archive.root_folder.get());
+}

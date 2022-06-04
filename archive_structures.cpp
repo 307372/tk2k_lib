@@ -7,6 +7,9 @@
 #include "misc/multithreading.h"
 #include "cryptography.h"
 
+File::File()
+: ArchiveStructure(""){}
+
 File::~File() {
     if (!key.empty()) { // making sure key is erased from memory
         for (auto& byte : key) {
@@ -25,7 +28,7 @@ bool File::process_the_file(std::fstream &archive_stream, const std::string& pat
     std::bitset<16> flags_bin(this->flags_value);
     bool is_encrypted = flags_bin[6];
 
-    if (encode == true)
+    if (encode)
     {
         if (is_encrypted) {
             assert(!key.empty());
@@ -99,8 +102,9 @@ std::ostream& operator<<(std::ostream &os, const File &f)
     os << "Has flags " << f.flags_value << '\n';
     os << "Header starts at byte " << f.location << ", with total size of " << File::base_metadata_size + f.name_length << " bytes\n";
     os << "Compressed data of this file starts at byte " << f.data_location << "\n";
-    assert(f.parent_ptr);
-    os << "Parent located at byte " << f.parent_ptr->location << ", ";
+    assert(!f.parent_ptr.expired());
+
+    os << "Parent located at byte " << f.parent_ptr.lock()->location << ", ";
     if (f.sibling_ptr) os << "Sibling located at byte " << f.sibling_ptr->location << '\n';
     else os << "there's no sibling\n";
     os << "With compressed size of " << f.compressed_size << " bits, and uncompressed size of " << f.original_size << " bytes." << std::endl;
@@ -108,7 +112,7 @@ std::ostream& operator<<(std::ostream &os, const File &f)
 }
 
 
-void File::parse( std::fstream &os, uint64_t pos, Folder* parent ) {
+void File::parse(std::fstream &os, uint64_t pos, std::shared_ptr<Folder>& parent) {
     uint8_t buffer[8];
     os.seekg(pos);
 
@@ -160,7 +164,7 @@ void File::parse( std::fstream &os, uint64_t pos, Folder* parent ) {
 
 
     if (sibling_location_pos != 0) {  // if there's another file in this dir, parse it too
-        this->sibling_ptr = std::make_unique<File>();
+        this->sibling_ptr = std::make_shared<File>();
         uint64_t backup_g = os.tellg();
         this->sibling_ptr->parse(os, sibling_location_pos, parent);
         os.seekg( backup_g );
@@ -174,13 +178,14 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
         this->alreadySaved = true;
         location = archive_file.tellp();
 
-        if (parent_ptr != nullptr) // correcting current file's location in model, and in the file
+        if (not is_uninitialized(parent_ptr)) // correcting current file's location in model, and in the file
         {
-            if ( parent_ptr->child_file_ptr.get() == this ) {
+            std::shared_ptr<Folder> locked_parent = parent_ptr.lock();
+            if ( locked_parent->child_file_ptr.get() == this ) {
 
                 uint64_t backup_p = archive_file.tellp();
 
-                archive_file.seekp( parent_ptr->location + 1 + parent_ptr->name_length + 24 ); // seekp( start of child_file_location in archive file )
+                archive_file.seekp( locked_parent->location + 1 + locked_parent->name_length + 24 ); // seekp( start of child_file_location in archive file )
                 auto buffer = new uint8_t[8];
 
                 for (uint8_t i=0; i < 8; i++)
@@ -193,7 +198,7 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
 
             }
             else {
-                File* file_ptr = parent_ptr->child_file_ptr.get(); // location of previous file in the same dir
+                File* file_ptr = locked_parent->child_file_ptr.get(); // location of previous file in the same dir
                 while( file_ptr->sibling_ptr != nullptr )
                 {
                     if (this != file_ptr->sibling_ptr.get())
@@ -228,12 +233,12 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
             buffer[bi+i] = name[i];
         bi += name_length;
 
-        if (parent_ptr)
-            for (uint8_t i = 0; i < 8; i++)
-                buffer[bi + i] = (parent_ptr->location >> (i * 8u)) & 0xFFu;
-        else
+        if (is_uninitialized(parent_ptr))
             for (uint8_t i = 0; i < 8; i++)
                 buffer[bi + i] = 0;
+        else
+            for (uint8_t i = 0; i < 8; i++)
+                buffer[bi + i] = (parent_ptr.lock()->location >> (i * 8u)) & 0xFFu;
         bi += 8;
 
         if (sibling_ptr)
@@ -424,7 +429,7 @@ void File::copy_to_another_archive( std::fstream& src, std::fstream& dst, uint64
 
         if (previous_sibling_location == 0)
         {
-            dst.seekp( parent_location + 1 + parent_ptr->name_length + 24 ); // seekp( start of child_file_location in archive file )
+            dst.seekp( parent_location + 1 + parent_ptr.lock()->name_length + 24 ); // seekp( start of child_file_location in archive file )
             dst.write((char*)&dst_location, 8);
 
         }
@@ -528,20 +533,14 @@ void File::copy_to_another_archive( std::fstream& src, std::fstream& dst, uint64
 
 // Folder methods below
 
-Folder::Folder()= default;
+Folder::Folder() : ArchiveStructure("") {}
 
 
-Folder::Folder( std::unique_ptr<Folder> &parent, std::string folder_name ) :
-    name_length(folder_name.length()),
-    name(std::move(folder_name)),
-    parent_ptr(parent.get()) {}
+Folder::Folder(std::shared_ptr<Folder>& parent, std::string folder_name ) :
+    ArchiveStructure(std::move(folder_name), folder_name.length(), parent) {}
 
-
-Folder::Folder( Folder* parent, std::string folder_name ) :
-    name_length(folder_name.length()),
-    name(std::move(folder_name)),
-    parent_ptr(parent) {}
-
+Folder::Folder(std::weak_ptr<Folder> parent, std::string folder_name ) :
+        ArchiveStructure(std::move(folder_name), folder_name.length(), parent) {}
 
 void Folder::recursive_print(std::ostream &os) const {
     os << *this << '\n';
@@ -554,7 +553,7 @@ void Folder::recursive_print(std::ostream &os) const {
 std::ostream& operator<<(std::ostream& os, const Folder& f){
     os << "Folder named: \"" << f.name << "\", len(name) = " << (uint32_t)f.name_length << '\n';
     os << "Header starts at byte " << f.location << ", with total size of " << Folder::base_metadata_size + f.name_length << " bytes\n";
-    if (f.parent_ptr) os << "Parent located at byte " << f.parent_ptr->location << ", ";
+    if (not is_uninitialized(f.parent_ptr)) os << "Parent located at byte " << f.parent_ptr.lock()->location << ", ";
     else os << "There's no parent, ";
     if (f.sibling_ptr) os << "Sibling located at byte " << f.sibling_ptr->location << '\n';
     else os << "there's no sibling\n";
@@ -568,11 +567,12 @@ std::ostream& operator<<(std::ostream& os, const Folder& f){
 }
 
 
-void Folder::parse( std::fstream &os, uint64_t pos, Folder* parent, std::unique_ptr<Folder> &shared_this  )
+void Folder::parse(std::fstream &os, uint64_t pos, std::weak_ptr<Folder>& parent, std::shared_ptr<Folder>& shared_this)
 {
     uint8_t buffer[8];
     os.seekg( pos );
 
+    this->lookup_id = (int64_t) pos;
     this->alreadySaved = true;
     this->location = pos;
     this->name_length = (uint8_t)os.get();
@@ -592,9 +592,10 @@ void Folder::parse( std::fstream &os, uint64_t pos, Folder* parent, std::unique_
 
 
     if (child_dir_pos_in_file !=0) {
-        this->child_dir_ptr = std::make_unique<Folder>();
+        this->child_dir_ptr = std::make_shared<Folder>();
         uint64_t backup_g = os.tellg();
-        this->child_dir_ptr->parse(os, child_dir_pos_in_file, shared_this.get(), child_dir_ptr );
+        std::weak_ptr<Folder> weak_this(shared_this);
+        this->child_dir_ptr->parse(os, child_dir_pos_in_file, weak_this, child_dir_ptr );
         os.seekg( backup_g );
     }
 
@@ -603,7 +604,7 @@ void Folder::parse( std::fstream &os, uint64_t pos, Folder* parent, std::unique_
     uint64_t sibling_pos_in_file = ((uint64_t)buffer[0]) | ((uint64_t)buffer[1]<<8u) | ((uint64_t)buffer[2]<<16u) | ((uint64_t)buffer[3]<<24u) | ((uint64_t)buffer[4]<<32u) | ((uint64_t)buffer[5]<<40u) | ((uint64_t)buffer[6]<<48u) | ((uint64_t)buffer[7]<<56u);
 
     if (sibling_pos_in_file != 0) {
-        this->sibling_ptr = std::make_unique<Folder>();
+        this->sibling_ptr = std::make_shared<Folder>();
         uint64_t backup_g = os.tellg();
         this->sibling_ptr->parse(os, sibling_pos_in_file, parent, sibling_ptr);
         os.seekg( backup_g );
@@ -613,11 +614,10 @@ void Folder::parse( std::fstream &os, uint64_t pos, Folder* parent, std::unique_
     os.read( (char*)buffer, 8 );
     uint64_t child_file_pos_in_file = ((uint64_t)buffer[0]) | ((uint64_t)buffer[1]<<8u) | ((uint64_t)buffer[2]<<16u) | ((uint64_t)buffer[3]<<24u) | ((uint64_t)buffer[4]<<32u) | ((uint64_t)buffer[5]<<40u) | ((uint64_t)buffer[6]<<48u) | ((uint64_t)buffer[7]<<56u);
 
-
     if (child_file_pos_in_file != 0) {
-        this->child_file_ptr = std::make_unique<File>();
+        this->child_file_ptr = std::make_shared<File>();
         uint64_t backup_g = os.tellg();
-        this->child_file_ptr->parse(os, child_file_pos_in_file, shared_this.get() ); // Seemingly implemented
+        this->child_file_ptr->parse(os, child_file_pos_in_file, shared_this);
         os.seekg( backup_g );
     }
 }
@@ -635,12 +635,13 @@ void Folder::write_to_archive( std::fstream &archive_file, bool& aborting_var ) 
         this->alreadySaved = true;
         location = archive_file.tellp();
 
-        if (parent_ptr != nullptr) { // correcting current dir's location in model, and in file
-            if ( parent_ptr->child_dir_ptr.get() == this ) {
+        if (not is_uninitialized(parent_ptr)) { // correcting current dir's location in model, and in file
+            std::shared_ptr<Folder> locked_parent = parent_ptr.lock();
+            if ( locked_parent->child_dir_ptr.get() == this ) {
                 // updating parent's knowledge of it's firstborn's location in file
                 uint64_t backup_p = archive_file.tellp();
 
-                archive_file.seekp( parent_ptr->location + 1 + parent_ptr->name_length + 8 ); // seekp( start of child_dir_location in archive file )
+                archive_file.seekp( locked_parent->location + 1 + locked_parent->name_length + 8 ); // seekp( start of child_dir_location in archive file )
                 auto buffer = new uint8_t[8];
 
                 for (uint8_t i=0; i < 8; i++)
@@ -652,7 +653,7 @@ void Folder::write_to_archive( std::fstream &archive_file, bool& aborting_var ) 
                 archive_file.seekp( backup_p );
             }
             else {
-                Folder* previous_folder = parent_ptr->child_dir_ptr.get();
+                Folder* previous_folder = locked_parent->child_dir_ptr.get();
                 while( previous_folder->sibling_ptr != nullptr )
                 {
                     if (this != previous_folder->sibling_ptr.get())
@@ -686,12 +687,13 @@ void Folder::write_to_archive( std::fstream &archive_file, bool& aborting_var ) 
             buffer[bi+i] = name[i];
         bi += name_length;
 
-        if (parent_ptr)
-            for (uint8_t i = 0; i < 8; i++)
-                buffer[bi + i] = (parent_ptr->location >> (i * 8u)) & 0xFFu;
-        else
+        if (is_uninitialized(parent_ptr))
             for (uint8_t i = 0; i < 8; i++)
                 buffer[bi + i] = 0;
+        else
+            for (uint8_t i = 0; i < 8; i++)
+                buffer[bi + i] = (parent_ptr.lock()->location >> (i * 8u)) & 0xFFu;
+
         bi += 8;
 
         if (child_dir_ptr)
@@ -739,7 +741,7 @@ void Folder::write_to_archive( std::fstream &archive_file, bool& aborting_var ) 
 void Folder::unpack( const std::filesystem::path& target_path, std::fstream &os, bool& aborting_var, bool unpack_all ) const
 {
     std::string temp_name;
-    if (this->parent_ptr == nullptr) temp_name = std::filesystem::path(this->name).stem();
+    if (is_uninitialized(parent_ptr)) temp_name = std::filesystem::path(this->name).stem();
     else temp_name = this->name;
 
     std::filesystem::path path_with_this_folder( target_path.string() + '/' + temp_name );
@@ -774,7 +776,7 @@ void Folder::set_path( std::filesystem::path extraction_path, bool set_all_paths
     auto folder_path = extraction_path;
 
     if ( this->ptr_already_gotten ) {
-        if (this->parent_ptr == nullptr)    // if this is main archive folder
+        if (is_uninitialized(parent_ptr))    // if this is main archive folder
         {
             std::filesystem::path extensionless_name = std::filesystem::path(this->name).stem();
             folder_path /= extensionless_name;
@@ -798,14 +800,15 @@ void Folder::copy_to_another_archive( std::fstream& src, std::fstream& dst, uint
 
         if (parent_location != 0)
         {
-            if ( parent_ptr->child_dir_ptr.get() == this ) {
+            auto locked_parent = parent_ptr.lock();
+            if ( locked_parent->child_dir_ptr.get() == this ) {
                 assert(previous_sibling_location == 0);
 
                 // update parent's knowledge of it's firstborn's location in file
 
                 uint64_t backup_p = dst.tellp();
 
-                dst.seekp( parent_location + 1 + parent_ptr->name_length + 8 ); // seekp( start of child_dir_location in the new archive )
+                dst.seekp( parent_location + 1 + locked_parent->name_length + 8 ); // seekp( start of child_dir_location in the new archive )
                 auto buffer = new uint8_t[8];
 
                 for (uint8_t i=0; i < 8; i++)
@@ -819,7 +822,7 @@ void Folder::copy_to_another_archive( std::fstream& src, std::fstream& dst, uint
             else {
                 assert(previous_sibling_location != 0);
                 // update previous sibling's knowledge of it's next sibling's location
-                Folder* previous_folder = parent_ptr->child_dir_ptr.get();
+                Folder* previous_folder = locked_parent->child_dir_ptr.get();
                 while( previous_folder->sibling_ptr != nullptr )
                 {
                     if (this != previous_folder->sibling_ptr.get())
