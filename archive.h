@@ -20,14 +20,14 @@ public:
     // Path that was used to load the file (if it was loaded)
     std::filesystem::path load_path;
 
-
     // Root folder of archive
     std::shared_ptr<Folder> root_folder;
 
     // Stream for creating/loading archive
     std::fstream archive_file;
 
-    int64_t currentLookupId = 1; // 0 is forbidden, since it's used as nullptr
+    // 0 is forbidden, since it's used as nullptr
+    int64_t currentLookupId = 1;
 
     // Closes archive_file if open
     void close();
@@ -55,8 +55,8 @@ public:
     void unpack_whole_archive( const std::string& path_to_directory, std::fstream &os, bool& aborting_var );
 
     // Adds information about file to archive's model, needs to happen for compression to be possible
-    void add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, const std::string& path_to_file, uint16_t &flags );
-    File* add_file_to_archive_model(Folder& parent_dir, const std::string& path_to_file, uint16_t& flags );
+    std::shared_ptr<File> add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, const std::string& path_to_file, const uint16_t &flags );
+    File* add_file_to_archive_model(Folder& parent_dir, const std::string& path_to_file, const uint16_t& flags );
 
     // Adds folder to archive's model, and returns pointer to unique pointer to it for future use
     static std::shared_ptr<Folder>* add_folder_to_model(std::shared_ptr<Folder>& parent_dir, const std::string& folder_name );

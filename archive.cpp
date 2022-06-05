@@ -91,7 +91,7 @@ void Archive::load(const std::string& path_to_file )
     this->load_path = std::filesystem::path( path_to_file );
 
     this->archive_file.open( path_to_file, std::ios::binary | std::ios::in | std::ios::out );
-    assert( this->archive_file.is_open() );
+    assert(this->archive_file.is_open());
 
     std::weak_ptr<Folder> emptyPtr{};
 
@@ -112,7 +112,7 @@ void Archive::build_empty_archive() const
 }
 
 
-void Archive::build_empty_archive( std::string archive_name )
+void Archive::build_empty_archive(std::string archive_name)
 {
     this->root_folder->name = archive_name;
     this->root_folder->name_length = this->root_folder->name.length();
@@ -204,7 +204,7 @@ Folder* Archive::add_folder_to_model(std::weak_ptr<Folder> parent_dir, std::stri
 }
 
 
-void Archive::add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, const std::string& path_to_file, uint16_t& flags)
+std::shared_ptr<File> Archive::add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, const std::string& path_to_file, const uint16_t& flags)
 {
     std::filesystem::path std_path(path_to_file);
     std::shared_ptr<File> new_file = std::make_shared<File>();
@@ -228,10 +228,12 @@ void Archive::add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, con
         }
         file_ptr->sibling_ptr.swap(new_file);
         AssignJniLookupId(file_ptr->sibling_ptr);
+        new_file = file_ptr->sibling_ptr;
     }
     else {
         parent_dir->child_file_ptr.swap(new_file);
         AssignJniLookupId(parent_dir->child_file_ptr);
+        new_file = parent_dir->child_file_ptr;
     }
 
     correct_duplicate_names(ptr_new_file, parent_dir.get());
@@ -240,6 +242,8 @@ void Archive::add_file_to_archive_model(std::shared_ptr<Folder>& parent_dir, con
     ptr_new_file->data_location = 0;                // location of data in archive (in bytes) will be added to model right before writing the data
     ptr_new_file->original_size = std::filesystem::file_size( std_path );
     ptr_new_file->compressed_size=0;                // will be determined after compression
+
+    return new_file;
 }
 
 void Archive::recursiveAddFolderToLookup(std::shared_ptr<Folder>& folder_ptr) {

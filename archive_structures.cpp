@@ -288,6 +288,7 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
         for (uint8_t i=0; i < 8; i++)
             buffer2[i+8] = (compressed_size >> (i*8u)) & 0xFFu;
 
+        assert(archive_file.is_open());
         archive_file.write((char*)buffer2, 16);
         delete[] buffer2;
 

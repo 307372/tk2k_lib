@@ -6,6 +6,7 @@
 
 static Archive archive;
 static IntegrityValidation iv;
+bool abortingVariable = false;
 
 
 
@@ -206,6 +207,7 @@ namespace testing {
                              + "\n\n" + testing::isTheSameVisual(fileLocation3, unpackedFilePath3);
         //+ "\nsizeof(uint64_t)==" + std::to_string(sizeof(std::uint64_t));
         //+ "\n\n" + validateIntegrityValidation();//*/
+        assert(archive.archive_file.is_open());
         return output;
     }
 
@@ -215,9 +217,9 @@ extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_example_turbokompresor1999_ArchiveViewActivity_stringFromJNI(JNIEnv *env, jobject thiz) {
     //return env->NewStringUTF(testing::testThings().c_str());
-    return env->NewStringUTF(testing::testComplex().c_str());
+    //return env->NewStringUTF(testing::testComplex().c_str());
     //return env->NewStringUTF(testing::testJustFolder().c_str());
-    //return env->NewStringUTF(testing::testJustLoad().c_str());
+    return env->NewStringUTF(testing::testJustLoad().c_str());
 }
 
 
@@ -265,4 +267,30 @@ extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_example_turbokompresor1999_Archive_pullWholeArchive(JNIEnv *env, jobject thiz) {
     return recursiveFillFolderChildren(env, archive.root_folder.get());
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_example_turbokompresor1999_ProcessingActivity_00024ProcessingThread_compressFile(
+        JNIEnv *env, jobject thiz, jstring path_to_file, jlong parent_lookup_id, jshort flags) {
+    assert(archive.archive_file.is_open());
+    abortingVariable = false;
+    std::shared_ptr<ArchiveStructure> parent_structure = archive.jniLookup[parent_lookup_id].lock();
+    std::shared_ptr<Folder> parent = std::dynamic_pointer_cast<Folder>(parent_structure);
+    assert(parent.get() != nullptr);
+    bool success = false;
+
+    const char* utf_path;
+    jboolean isCopy;
+    utf_path = env->GetStringUTFChars(path_to_file, &isCopy);
+    std::string utf_path_string(utf_path);
+    env->ReleaseStringUTFChars(path_to_file, utf_path);
+
+    auto file = archive.add_file_to_archive_model(parent, utf_path_string, (uint16_t) flags);
+    file->append_to_archive(archive.archive_file, abortingVariable);
+    archive.archive_file.flush();
+    //archive.save(archive.load_path, abortingVariable);
+    success = true;
+
+    return success;
 }
