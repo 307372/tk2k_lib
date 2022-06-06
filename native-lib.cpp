@@ -284,7 +284,7 @@ Java_com_example_turbokompresor1999_Archive_pullWholeArchive(JNIEnv *env, jobjec
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_example_turbokompresor1999_ProcessingActivity_00024ProcessingThread_compressFile(
+Java_com_example_turbokompresor1999_ProcessingActivity_00024CompressionThread_compressFile(
         JNIEnv *env, jobject thiz, jstring path_to_file, jlong parent_lookup_id, jint flags)
 {
     assert(archive.archive_file.is_open());
@@ -315,4 +315,42 @@ Java_com_example_turbokompresor1999_ProcessingActivity_getProcessingProgress(
         JNIEnv *env, jobject thiz)
 {
     return partialProgress * 100 + totalProgress;
+}
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_example_turbokompresor1999_ProcessingActivity_00024DecompressionThread_decompressStructure(
+        JNIEnv *env, jobject thiz, jstring outputFolderPath, jlong lookup_id)
+{
+    assert(archive.archive_file.is_open());
+    abortingVariable = false;
+    totalProgress = 0;
+    partialProgress = 0;
+
+    const char* utf_path;
+    jboolean isCopy;
+    utf_path = env->GetStringUTFChars(outputFolderPath, &isCopy);
+    std::string utf_path_string(utf_path);
+    env->ReleaseStringUTFChars(outputFolderPath, utf_path);
+
+    std::shared_ptr<ArchiveStructure> structure = archive.jniLookup[lookup_id].lock();
+    std::shared_ptr<Folder> folder = std::dynamic_pointer_cast<Folder>(structure);
+    std::shared_ptr<File> file = std::dynamic_pointer_cast<File>(structure);
+
+    bool success = false;
+
+    if (folder != nullptr) {
+        //TODO: folder->unpack()
+    } else if (file != nullptr) {
+        file->unpack(utf_path,
+                     archive.archive_file,
+                     abortingVariable,
+                     false,
+                     true,
+                     &partialProgress,
+                     &totalProgress);
+    } else assert(false);
+
+    success = true;
+
+    return success;
 }
