@@ -6,13 +6,15 @@
 
 static Archive archive;
 static IntegrityValidation iv;
-bool abortingVariable = false;
+static bool abortingVariable = false;
+static uint32_t totalProgress = 0;
+static uint32_t partialProgress = 0;
 
 
 
 namespace testing {
-    void createTestArchive(Archive &archive, const std::string &filePath,
-                           const std::string &archivePath) {
+    void createTestArchive(Archive &archive, const std::string &filePath, const std::string &archivePath)
+    {
         std::bitset<16> flags{0};
         flags.set(15); // SHA-1
         flags.set(0); // BWT (DC3)
@@ -42,7 +44,8 @@ namespace testing {
             const std::string &filePath1,
             const std::string &filePath2,
             const std::string &filePath3,
-            const std::string &archivePath) {
+            const std::string &archivePath)
+    {
         // all pointers in root folder and root file must be filled
 
         std::bitset<16> flags{0};
@@ -210,8 +213,18 @@ namespace testing {
         assert(archive.archive_file.is_open());
         return output;
     }
+    std::string autoArchiveTest() {
+        std::filesystem::path archivePath = "/storage/emulated/0/Download/archive.tk2k";
 
+        if (not std::filesystem::exists(archivePath)) {
+            testing::testComplex();
+            archive.close();
+        }
+        return testing::testJustLoad();
+    }
 }
+
+
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -219,7 +232,7 @@ Java_com_example_turbokompresor1999_ArchiveViewActivity_stringFromJNI(JNIEnv *en
     //return env->NewStringUTF(testing::testThings().c_str());
     //return env->NewStringUTF(testing::testComplex().c_str());
     //return env->NewStringUTF(testing::testJustFolder().c_str());
-    return env->NewStringUTF(testing::testJustLoad().c_str());
+    return env->NewStringUTF(testing::autoArchiveTest().c_str());
 }
 
 
@@ -272,9 +285,13 @@ Java_com_example_turbokompresor1999_Archive_pullWholeArchive(JNIEnv *env, jobjec
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_example_turbokompresor1999_ProcessingActivity_00024ProcessingThread_compressFile(
-        JNIEnv *env, jobject thiz, jstring path_to_file, jlong parent_lookup_id, jshort flags) {
+        JNIEnv *env, jobject thiz, jstring path_to_file, jlong parent_lookup_id, jint flags)
+{
     assert(archive.archive_file.is_open());
     abortingVariable = false;
+    totalProgress = 0;
+    partialProgress = 0;
+
     std::shared_ptr<ArchiveStructure> parent_structure = archive.jniLookup[parent_lookup_id].lock();
     std::shared_ptr<Folder> parent = std::dynamic_pointer_cast<Folder>(parent_structure);
     assert(parent.get() != nullptr);
@@ -287,10 +304,15 @@ Java_com_example_turbokompresor1999_ProcessingActivity_00024ProcessingThread_com
     env->ReleaseStringUTFChars(path_to_file, utf_path);
 
     auto file = archive.add_file_to_archive_model(parent, utf_path_string, (uint16_t) flags);
-    file->append_to_archive(archive.archive_file, abortingVariable);
-    archive.archive_file.flush();
-    //archive.save(archive.load_path, abortingVariable);
+    file->append_to_archive(archive.archive_file, abortingVariable, false, &partialProgress, &totalProgress);
     success = true;
 
     return success;
+}
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_turbokompresor1999_ProcessingActivity_getProcessingProgress(
+        JNIEnv *env, jobject thiz)
+{
+    return partialProgress * 100 + totalProgress;
 }

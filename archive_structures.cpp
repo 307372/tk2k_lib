@@ -20,71 +20,48 @@ File::~File() {
 
 
 
-bool File::process_the_file(std::fstream &archive_stream, const std::string& path_to_destination, bool encode, bool& aborting_var, bool validate_integrity, uint16_t* progress_ptr ) {
-
+bool File::process_the_file(std::fstream &archive_stream,
+                            const std::string& path_to_destination,
+                            bool encode,
+                            bool& aborting_var,
+                            bool validate_integrity,
+                            uint32_t* partialProgress,
+                            uint32_t* totalProgress)
+{
     assert(archive_stream.is_open());
 
     bool successful = false;
     std::bitset<16> flags_bin(this->flags_value);
-    bool is_encrypted = flags_bin[6];
 
     if (encode)
     {
-        if (is_encrypted) {
-            assert(!key.empty());
-            assert(!encryption_metadata.empty());
 
-            auto* copied_key = new uint8_t[key.length()];
-            for (uint16_t i=0; i < key.length(); ++i) {
-                copied_key[i] = (uint8_t)key[i];
-            }
-
-            successful = multithreading::processing_foreman(archive_stream, this->path, multithreading::mode::compress,
-                                                            flags_value, original_size, &this->compressed_size,
-                                                            aborting_var, validate_integrity, progress_ptr,
-                                                            &copied_key, // randomly generated key
-                                                            const_cast<uint8_t*>(encryption_metadata.c_str()), // actual metadata
-                                                            encryption_metadata.length() ); // actual metadata length
-            delete[] copied_key;
-        }
-        else {
-                successful = multithreading::processing_foreman(archive_stream, this->path, multithreading::mode::compress,
-                                                                flags_value, original_size, &this->compressed_size,
-                                                                aborting_var, validate_integrity, progress_ptr );
-        }
+        successful = multithreading::processing_foreman(
+                archive_stream,
+                this->path,
+                multithreading::mode::compress,
+                flags_value,
+                original_size,
+                &this->compressed_size,
+                aborting_var,
+                validate_integrity,
+                partialProgress,
+                totalProgress);
     }
     else
     {
         archive_stream.seekg(this->data_location);
-
-        if (is_encrypted) {
-            uint8_t* empty_metadata_ptr = nullptr;
-            uint64_t whatever_metadata_size = 0;
-
-            assert(!key.empty());
-            assert(!encryption_metadata.empty());
-
-            auto pw_key = new uint8_t [key.length()];
-            for (uint16_t i=0; i < key.length(); ++i) {
-                pw_key[i] = key[i];
-            }
-
-            successful = multithreading::processing_foreman(archive_stream, path_to_destination + '/' + this->name,
-                                                            multithreading::mode::decompress, flags_value,
-                                                            original_size, &this->compressed_size, aborting_var,
-                                                            validate_integrity, progress_ptr,
-                                                            &pw_key, // PBKDF2(password)
-                                                            empty_metadata_ptr,
-                                                            whatever_metadata_size );
-            delete[] empty_metadata_ptr;
-            delete[] pw_key;
-        }
-        else {
-            successful = multithreading::processing_foreman(archive_stream, path_to_destination + '/' + this->name,
-                                                            multithreading::mode::decompress, flags_value,
-                                                            original_size, &this->compressed_size, aborting_var,
-                                                            validate_integrity, progress_ptr);
-        }
+            successful = multithreading::processing_foreman(
+                    archive_stream,
+                    path_to_destination + '/' + this->name,
+                    multithreading::mode::decompress,
+                    flags_value,
+                    original_size,
+                    &this->compressed_size,
+                    aborting_var,
+                    validate_integrity,
+                    partialProgress,
+                    totalProgress);
     }
     return successful;
 }
@@ -159,7 +136,7 @@ void File::parse(std::fstream &os, uint64_t pos, std::shared_ptr<Folder>& parent
 
 
     // Getting size of uncompressed data of this file from the archive
-    os.read( (char*)buffer, 8 );
+    os.read((char*)buffer, 8);
     this->original_size = ((uint64_t)buffer[0]) | ((uint64_t)buffer[1]<<8u) | ((uint64_t)buffer[2]<<16u) | ((uint64_t)buffer[3]<<24u) | ((uint64_t)buffer[4]<<32u) | ((uint64_t)buffer[5]<<40u) | ((uint64_t)buffer[6]<<48u) | ((uint64_t)buffer[7]<<56u);
 
 
@@ -167,12 +144,17 @@ void File::parse(std::fstream &os, uint64_t pos, std::shared_ptr<Folder>& parent
         this->sibling_ptr = std::make_shared<File>();
         uint64_t backup_g = os.tellg();
         this->sibling_ptr->parse(os, sibling_location_pos, parent);
-        os.seekg( backup_g );
+        os.seekg(backup_g);
     }
 }
 
 
-bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, bool write_siblings, uint16_t* progress_var ) {
+bool File::write_to_archive(std::fstream &archive_file,
+                            bool& aborting_var,
+                            bool write_siblings,
+                            uint32_t* partialProgress,
+                            uint32_t* totalProgress)
+{
     bool successful = false;
     if (!this->alreadySaved and !aborting_var) {
         this->alreadySaved = true;
@@ -181,20 +163,20 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
         if (not is_uninitialized(parent_ptr)) // correcting current file's location in model, and in the file
         {
             std::shared_ptr<Folder> locked_parent = parent_ptr.lock();
-            if ( locked_parent->child_file_ptr.get() == this ) {
+            if (locked_parent->child_file_ptr.get() == this) {
 
                 uint64_t backup_p = archive_file.tellp();
 
-                archive_file.seekp( locked_parent->location + 1 + locked_parent->name_length + 24 ); // seekp( start of child_file_location in archive file )
+                archive_file.seekp(locked_parent->location + 1 + locked_parent->name_length + 24); // seekp( start of child_file_location in archive file )
                 auto buffer = new uint8_t[8];
 
                 for (uint8_t i=0; i < 8; i++)
-                    buffer[i] = ( location >> (i*8u)) & 0xFFu;
+                    buffer[i] = (location >> (i*8u)) & 0xFFu;
 
                 archive_file.write((char*)buffer, 8);
                 delete[] buffer;
 
-                archive_file.seekp( backup_p );
+                archive_file.seekp(backup_p);
 
             }
             else {
@@ -267,6 +249,7 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
 
         assert( bi == buffer_size );
         archive_file.write((char*)buffer, buffer_size);
+        archive_file.flush();
         delete[] buffer;
 
 
@@ -275,7 +258,13 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
         data_location = backup_end_of_metadata;
 
         // encoding
-        successful = process_the_file( archive_file, "encoding has it's path in the file object", true, aborting_var, true, progress_var );
+        successful = process_the_file(archive_file,
+                                      "encoding has it's path in the file object",
+                                      true,
+                                      aborting_var,
+                                      true,
+                                      partialProgress,
+                                      totalProgress);
 
         auto backup_p = archive_file.tellp();
 
@@ -295,23 +284,25 @@ bool File::write_to_archive( std::fstream &archive_file, bool& aborting_var, boo
         archive_file.seekp( backup_p );
     }
 
-    if (sibling_ptr and write_siblings and !aborting_var) sibling_ptr->write_to_archive( archive_file, aborting_var, write_siblings );
+    if (sibling_ptr and write_siblings and !aborting_var) {
+        sibling_ptr->write_to_archive(archive_file, aborting_var, write_siblings, partialProgress, totalProgress);
+    }
     return successful;
 }
 
 
-bool File::unpack( const std::string& path_to_destination, std::fstream &os, bool& aborting_var, bool unpack_all, bool validate_integrity, uint16_t* progress_var )
+bool File::unpack(const std::string& path_to_destination, std::fstream &os, bool& aborting_var, bool unpack_all, bool validate_integrity, uint32_t* partialProgress, uint32_t* totalProgress)
 {
     uint64_t backup_g = os.tellg();
     os.seekg( this->data_location );
 
-    bool success = process_the_file( os, path_to_destination, false, aborting_var, validate_integrity, progress_var );
+    bool success = process_the_file(os, path_to_destination, false, aborting_var, validate_integrity, partialProgress, totalProgress);
 
     os.seekg( backup_g );
 
     if (sibling_ptr != nullptr and unpack_all)
     {
-        sibling_ptr->unpack( path_to_destination, os, aborting_var, unpack_all, validate_integrity, progress_var );
+        sibling_ptr->unpack(path_to_destination, os, aborting_var, unpack_all, validate_integrity, partialProgress, totalProgress);
     }
 
     return success;
@@ -394,9 +385,15 @@ std::string File::get_uncompressed_filesize_str(bool scaled) {
 }
 
 
-bool File::append_to_archive( std::fstream& archive_file, bool& aborting_var, bool write_siblings, uint16_t* progress_var ) {
+bool File::append_to_archive(
+        std::fstream& archive_file,
+        bool& aborting_var,
+        bool write_siblings,
+        uint32_t* partialProgress,
+        uint32_t* totalProgress)
+{
     archive_file.seekp(0, std::ios_base::end);
-    return this->write_to_archive( archive_file, aborting_var, write_siblings, progress_var );
+    return this->write_to_archive( archive_file, aborting_var, write_siblings, partialProgress, totalProgress);
 }
 
 

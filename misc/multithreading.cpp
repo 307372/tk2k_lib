@@ -21,14 +21,14 @@
 namespace multithreading
 {
     enum class mode : uint32_t { compress=100, decompress=200 };
-    inline uint16_t calculate_progress( float current, float whole ) { return roundf(current*100 / whole); }
+    inline uint16_t calculate_progress(float current, float whole) {return roundf(current*100 / whole);}
 
-    void processing_worker( multithreading::mode task, Compression* comp, uint16_t flags, bool& aborting_var, bool* is_finished,
-                            uint8_t*& key, uint8_t*& metadata, uint32_t& metadata_size, uint16_t* progress_ptr = nullptr )
+    void processing_worker(multithreading::mode task, Compression* comp, uint16_t flags, bool& aborting_var, bool* is_finished,
+                           uint8_t*& key, uint8_t*& metadata, uint32_t& metadata_size, uint32_t* progress_ptr = nullptr)
     {
         std::bitset<16> bin_flags = flags;
-        if (task == multithreading::mode::compress) {
-
+        if (task == multithreading::mode::compress)
+        {
             if (bin_flags[0] and !aborting_var) {
                 comp->BWT_make();
                 if (progress_ptr != nullptr) (*progress_ptr)++;
@@ -99,11 +99,11 @@ namespace multithreading
                             bool worker_finished[], uint32_t block_count, uint64_t* compressed_size,
                             std::string& checksum, bool& checksum_done, uint64_t original_size, bool& aborting_var, bool* successful )
     {
-        assert( output.is_open() );
+        assert(output.is_open());
         uint32_t next_to_write = 0;  // index of last written block of data in comp_v
         if (task == multithreading::mode::compress) *compressed_size = 0;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        while ( next_to_write != block_count )
+        while (next_to_write != block_count)
         {
             if (aborting_var) return;
 
@@ -125,7 +125,8 @@ namespace multithreading
             else std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if (task == multithreading::mode::compress) {
-            while (!checksum_done or aborting_var) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            while (!checksum_done or aborting_var)
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             if (aborting_var) return;
             if (checksum.length() != 0) output.write(checksum.c_str(), checksum.length());
             *successful = true; // if this didn't crash, then I guess it succeeded
@@ -168,9 +169,19 @@ namespace multithreading
     }
 
 
-    bool processing_foreman( std::fstream &archive_stream, const std::string& target_path, multithreading::mode task, uint16_t flags,
-                             uint64_t original_size, uint64_t* compressed_size, bool& aborting_var, bool validate_integrity,
-                             uint16_t* progress_ptr, uint8_t** key=nullptr, uint8_t* metadata=nullptr, uint32_t metadata_size=0)
+    bool processing_foreman(std::fstream &archive_stream,
+                            const std::string& target_path,
+                            multithreading::mode task,
+                            uint16_t flags,
+                            uint64_t original_size,
+                            uint64_t* compressed_size,
+                            bool& aborting_var,
+                            bool validate_integrity,
+                            uint32_t* partialProgress,
+                            uint32_t* totalProgress,
+                            uint8_t** key=nullptr,
+                            uint8_t* metadata=nullptr,
+                            uint32_t metadata_size=0)
     /*/ 1. delegates work to each thread
     // 2. calculates checksum and sends it to scribe, after all the blocks of data have been processed
 
@@ -254,7 +265,7 @@ namespace multithreading
             }
 
             workers.emplace_back(&processing_worker, task, comp_v[i], flags, std::ref(aborting_var),
-                                 &task_finished_arr[i], std::ref(*key), std::ref(metadata), std::ref(metadata_size), progress_ptr);
+                                 &task_finished_arr[i], std::ref(*key), std::ref(metadata), std::ref(metadata_size), partialProgress);
 
 
             task_started_arr[i] = true;
@@ -308,7 +319,7 @@ namespace multithreading
                                              std::ref(aborting_var),
                                              &task_finished_arr[lowest_free_work_ind],
                                              std::ref(*key), std::ref(metadata), std::ref(metadata_size),
-                                             progress_ptr);
+                                             partialProgress);
 
                         lowest_free_work_ind++;
                     }
@@ -334,16 +345,19 @@ namespace multithreading
             {
                 IntegrityValidation iv;
                 checksum = iv.get_SHA1_from_file(target_path, aborting_var);
+                if(partialProgress) (*partialProgress)++;
             }
             if (bin_flags[14])  // CRC-32
             {
                 IntegrityValidation iv;
                 checksum = iv.get_CRC32_from_file(target_path, aborting_var);
+                if(partialProgress)(*partialProgress)++;
             }
             if (bin_flags[13])  // SHA-256
             {
                 IntegrityValidation iv;
                 checksum = iv.get_SHA256_from_file(target_path, aborting_var);
+                if(partialProgress)(*partialProgress)++;
             }
 
             checksum_done = true;
@@ -354,20 +368,25 @@ namespace multithreading
             {
                 checksum = std::string(40, 0x00);
                 archive_stream.read((char*)checksum.data(), checksum.length());
+                if(partialProgress) (*partialProgress)++;
             }
             if (bin_flags[14])  // CRC-32
             {
                 checksum = std::string(10, 0x00);
                 archive_stream.read((char*)checksum.data(), checksum.length());
+                if(partialProgress) (*partialProgress)++;
             }
             if (bin_flags[13])  // SHA-256
             {
                 checksum = std::string(64, 0x00);
                 archive_stream.read((char*)checksum.data(), checksum.length());
+                if(partialProgress) (*partialProgress)++;
             }
 
             checksum_done = true;
         }
+
+        if(totalProgress != nullptr) (*totalProgress)++;
 
         for (auto& th : workers) if (th.joinable()) th.join();
         if (scribe.joinable()) scribe.join();

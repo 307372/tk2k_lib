@@ -113,8 +113,13 @@ public:
     File();
     ~File();
 
-    bool process_the_file(std::fstream &archive_stream, const std::string& path_to_destination, bool decode, bool& aborting_var,
-                         bool validate_integrity = true, uint16_t* progress_ptr = nullptr );
+    bool process_the_file(std::fstream &archive_stream,
+                          const std::string& path_to_destination,
+                          bool decode,
+                          bool& aborting_var,
+                          bool validate_integrity = true,
+                          uint32_t* partialProgress = nullptr,
+                          uint32_t* totalProgress  = nullptr);
 
     void recursive_print(std::ostream &os) const;
 
@@ -122,22 +127,36 @@ public:
 
     void parse(std::fstream &os, uint64_t pos, std::shared_ptr<Folder>& parent);
 
-    bool append_to_archive( std::fstream& archive_file, bool& aborting_var, bool write_siblings = true, uint16_t* progress_var = nullptr );
+    bool append_to_archive(std::fstream& archive_file,
+                           bool& aborting_var,
+                           bool write_siblings = true,
+                           uint32_t* partialProgress = nullptr,
+                           uint32_t* totalProgress  = nullptr);
 
-    bool write_to_archive( std::fstream& archive_file, bool& aborting_var, bool write_siblings = true, uint16_t* progress_var = nullptr );
+    bool write_to_archive(std::fstream& archive_file,
+                          bool& aborting_var,
+                          bool write_siblings = true,
+                          uint32_t* partialProgress = nullptr,
+                          uint32_t* totalProgress  = nullptr);
 
-    bool unpack( const std::string& path, std::fstream &os, bool& aborting_var, bool unpack_all, bool validate_integrity = true, uint16_t* progress_var = nullptr );
+    bool unpack(const std::string& path,
+                std::fstream &os,
+                bool& aborting_var,
+                bool unpack_all,
+                bool validate_integrity = true,
+                uint32_t* partialProgress = nullptr,
+                uint32_t* totalProgress  = nullptr);
     // returns bool which indicates whether decompression was successful
 
     std::string get_compressed_filesize_str(bool scaled);
 
     std::string get_uncompressed_filesize_str(bool scaled);
 
-    void copy_to_another_archive( std::fstream& source, std::fstream& destination, uint64_t parent_location, uint64_t previous_sibling_location, uint16_t previous_name_length );
+    void copy_to_another_archive(std::fstream& source, std::fstream& destination, uint64_t parent_location, uint64_t previous_sibling_location, uint16_t previous_name_length);
 
-    void get_ptrs( std::vector<File*>& files, bool get_siblings_too = false );
+    void get_ptrs(std::vector<File*>& files, bool get_siblings_too = false);
 
-    void set_path( std::filesystem::path extraction_path, bool set_all_paths );
+    void set_path(std::filesystem::path extraction_path, bool set_all_paths);
 
     bool is_locked() const;
 

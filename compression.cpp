@@ -1066,7 +1066,7 @@ void Compression::rANS_make()
 {
     // Loosely based on a paper by James Townsend at https://arxiv.org/pdf/2001.09186.pdf
 
-    if (*aborting_var) return;
+    if (*aborting_var or size == 0) return;
 
     std::vector<uint64_t> PMF;                        // PMF - Probability Mass Function
     uint8_t index_of_chars[256] = {0x00};             // given real char, gives us its index in PMF and CMF
@@ -1189,7 +1189,7 @@ void Compression::rANS_reverse()
 {
     // Loosely based on a paper by James Townsend at https://arxiv.org/pdf/2001.09186.pdf
 
-    if (*aborting_var) return;
+    if (*aborting_var or size == 0) return;
 
     // loading original size
     uint32_t original_size = *reinterpret_cast<uint32_t*>(text);
