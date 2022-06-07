@@ -36,7 +36,17 @@ void Archive::close()
         this->archive_file.close();
 }
 
-void Archive::removeArchiveObjects(std::vector<std::int64_t>& targets) {
+void Archive::removeArchiveStruct(int64_t lookup_id)
+{
+    std::vector<int64_t> targets;
+    targets.push_back(lookup_id);
+
+    removeMultipleArchiveStructs(targets);
+}
+
+void Archive::removeMultipleArchiveStructs(
+        std::vector<int64_t>& targets)
+{
     std::vector<Folder*> folders;
     std::vector<File*> files;
 
@@ -56,7 +66,8 @@ void Archive::removeArchiveObjects(std::vector<std::int64_t>& targets) {
     for (auto single_folder : folders) single_folder->get_ptrs( folders, files );
     for (auto single_file   : files  ) single_file->get_ptrs( files );
 
-    std::filesystem::path temp_path = std::filesystem::temp_directory_path().append("tk1999_archive.tmp");
+    std::filesystem::path temp_path(this->load_path.parent_path() / "tk1999_archive.tmp");
+
     std::fstream dst(temp_path, std::ios::binary | std::ios::out);
     assert(dst.is_open());
 

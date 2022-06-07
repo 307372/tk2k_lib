@@ -43,7 +43,8 @@ public:
     void build_empty_archive( std::string archive_name );   // custom archive name
 
     void removeArchive();
-    void removeArchiveObjects(std::vector<std::int64_t>& targets);
+    void removeArchiveStruct(int64_t lookup_id);
+    void removeMultipleArchiveStructs(std::vector<std::int64_t>& targets);
 
     // Finds and returns pointer to shared_ptr to file
     std::shared_ptr<File>* find_file_in_archive(std::weak_ptr<Folder> parent, File* wanted_file );

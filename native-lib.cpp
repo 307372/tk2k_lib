@@ -1,10 +1,11 @@
 #include <jni.h>
+#include <memory>
 #include <string>
 #include <cassert>
 #include <sstream>
 #include "archive.h"
 
-static Archive archive;
+static std::unique_ptr<Archive> archive = std::make_unique<Archive>();
 static IntegrityValidation iv;
 static bool abortingVariable = false;
 static uint32_t totalProgress = 0;
@@ -33,10 +34,10 @@ namespace testing {
     }
 
     void createOneFolderArchive(const std::string &archivePath) {
-        archive.add_folder_to_model(archive.root_folder, "test folder");
+        archive->add_folder_to_model(archive->root_folder, "test folder");
 
         bool fakeAbortingVar = false;
-        archive.save(archivePath, fakeAbortingVar);
+        archive->save(archivePath, fakeAbortingVar);
     }
 
     void createComplexTestArchive(
@@ -116,16 +117,16 @@ namespace testing {
         std::string unpackedPath = dirPath + "unpacked/";
         std::string unpackedFilePath = unpackedPath + "archive/" + name;
 
-        createTestArchive(archive, fileLocation, archivePath);
+        createTestArchive(*archive, fileLocation, archivePath);
 
-        archive.close();
+        archive->close();
 
-        archive.load(archivePath);
+        archive->load(archivePath);
         bool fakeAbortingVar = false;
-        archive.unpack_whole_archive(unpackedPath, archive.archive_file, fakeAbortingVar);
+        archive->unpack_whole_archive(unpackedPath, archive->archive_file, fakeAbortingVar);
         //bool success = isTheSameData(fileLocation, unpackedFilePath);
 
-        std::string hello = archive.recursive_string()//;//*
+        std::string hello = archive->recursive_string()//;//*
                             + "\n" + isTheSameVisual(fileLocation, unpackedFilePath)
                             + "\nsizeof(uint64_t)==" + std::to_string(sizeof(std::uint64_t))
                             + "\n\n" + validateIntegrityValidation();//*/
@@ -140,16 +141,16 @@ namespace testing {
             std::string unpackedPath = dirPath + "unpacked/";
             std::string unpackedFilePath = unpackedPath + "archive/" + name;
 
-            testing::createTestArchive(archive, fileLocation, archivePath);
+            testing::createTestArchive(*archive, fileLocation, archivePath);
 
-            archive.close();
+            archive->close();
 
-            archive.load(archivePath);
+            archive->load(archivePath);
             bool fakeAbortingVar = false;
-            archive.unpack_whole_archive(unpackedPath, archive.archive_file, fakeAbortingVar);
+            archive->unpack_whole_archive(unpackedPath, archive->archive_file, fakeAbortingVar);
             //bool success = isTheSameData(fileLocation, unpackedFilePath);
 
-            std::string output = archive.recursive_string()//;//*
+            std::string output = archive->recursive_string()//;//*
             + "\n" + testing::isTheSameVisual(fileLocation, unpackedFilePath);
             //+ "\nsizeof(uint64_t)==" + std::to_string(sizeof(std::uint64_t));
             //+ "\n\n" + validateIntegrityValidation();//*/
@@ -161,9 +162,9 @@ namespace testing {
         std::string dirPath = "/storage/emulated/0/Download/";
         std::string archivePath = dirPath + archiveName + ".tk2k";
 
-        archive.load(archivePath);
+        archive->load(archivePath);
 
-        return archive.recursive_string();
+        return archive->recursive_string();
     }
 
     std::string testJustFolder() {
@@ -172,11 +173,11 @@ namespace testing {
         std::string archivePath = dirPath + archiveName + ".tk2k";
 
         createOneFolderArchive(archivePath);
-        archive.close();
+        archive->close();
 
-        archive.load(archivePath);
+        archive->load(archivePath);
 
-        return archive.recursive_string();
+        return archive->recursive_string();
     }
 
     std::string testComplex() {
@@ -196,21 +197,21 @@ namespace testing {
         std::string unpackedFilePath2 = unpackedPath + "archive/" + name2;
         std::string unpackedFilePath3 = unpackedPath + "archive/" + name3;
 
-        testing::createComplexTestArchive(archive, fileLocation1, fileLocation2, fileLocation3, archivePath);
-        archive.close();
+        testing::createComplexTestArchive(*archive, fileLocation1, fileLocation2, fileLocation3, archivePath);
+        archive->close();
 
-        archive.load(archivePath);
+        archive->load(archivePath);
         bool fakeAbortingVar = false;
-        archive.unpack_whole_archive(unpackedPath, archive.archive_file, fakeAbortingVar);
+        archive->unpack_whole_archive(unpackedPath, archive->archive_file, fakeAbortingVar);
         //bool success = isTheSameData(fileLocation, unpackedFilePath);
 
-        std::string output = archive.recursive_string()//;//*
+        std::string output = archive->recursive_string()//;//*
  //                            + "\n\n" + testing::isTheSameVisual(fileLocation1, unpackedFilePath1)
  //                            + "\n\n" + testing::isTheSameVisual(fileLocation2, unpackedFilePath2)
                              + "\n\n" + testing::isTheSameVisual(fileLocation3, unpackedFilePath3);
         //+ "\nsizeof(uint64_t)==" + std::to_string(sizeof(std::uint64_t));
         //+ "\n\n" + validateIntegrityValidation();//*/
-        assert(archive.archive_file.is_open());
+        assert(archive->archive_file.is_open());
         return output;
     }
     std::string autoArchiveTest() {
@@ -218,7 +219,7 @@ namespace testing {
 
         if (not std::filesystem::exists(archivePath)) {
             testing::testComplex();
-            archive.close();
+            archive->close();
         }
         return testing::testJustLoad();
     }
@@ -279,7 +280,14 @@ jobject recursiveFillFileChildren(JNIEnv *env, File* file_ptr) {
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_example_turbokompresor1999_Archive_pullWholeArchive(JNIEnv *env, jobject thiz) {
-    return recursiveFillFolderChildren(env, archive.root_folder.get());
+    return recursiveFillFolderChildren(env, archive->root_folder.get());
+}
+
+void archiveOpPreparationCommon() {
+    assert(archive->archive_file.is_open());
+    abortingVariable = false;
+    totalProgress = 0;
+    partialProgress = 0;
 }
 
 extern "C"
@@ -287,12 +295,9 @@ JNIEXPORT jboolean JNICALL
 Java_com_example_turbokompresor1999_ProcessingActivity_00024CompressionThread_compressFile(
         JNIEnv *env, jobject thiz, jstring path_to_file, jlong parent_lookup_id, jint flags)
 {
-    assert(archive.archive_file.is_open());
-    abortingVariable = false;
-    totalProgress = 0;
-    partialProgress = 0;
+    archiveOpPreparationCommon();
 
-    std::shared_ptr<ArchiveStructure> parent_structure = archive.jniLookup[parent_lookup_id].lock();
+    std::shared_ptr<ArchiveStructure> parent_structure = archive->jniLookup[parent_lookup_id].lock();
     std::shared_ptr<Folder> parent = std::dynamic_pointer_cast<Folder>(parent_structure);
     assert(parent.get() != nullptr);
     bool success = false;
@@ -303,8 +308,8 @@ Java_com_example_turbokompresor1999_ProcessingActivity_00024CompressionThread_co
     std::string utf_path_string(utf_path);
     env->ReleaseStringUTFChars(path_to_file, utf_path);
 
-    auto file = archive.add_file_to_archive_model(parent, utf_path_string, (uint16_t) flags);
-    file->append_to_archive(archive.archive_file, abortingVariable, false, &partialProgress, &totalProgress);
+    auto file = archive->add_file_to_archive_model(parent, utf_path_string, (uint16_t) flags);
+    file->append_to_archive(archive->archive_file, abortingVariable, false, &partialProgress, &totalProgress);
     success = true;
 
     return success;
@@ -321,10 +326,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_example_turbokompresor1999_ProcessingActivity_00024DecompressionThread_decompressStructure(
         JNIEnv *env, jobject thiz, jstring outputFolderPath, jlong lookup_id)
 {
-    assert(archive.archive_file.is_open());
-    abortingVariable = false;
-    totalProgress = 0;
-    partialProgress = 0;
+    archiveOpPreparationCommon();
 
     const char* utf_path;
     jboolean isCopy;
@@ -332,7 +334,7 @@ Java_com_example_turbokompresor1999_ProcessingActivity_00024DecompressionThread_
     std::string utf_path_string(utf_path);
     env->ReleaseStringUTFChars(outputFolderPath, utf_path);
 
-    std::shared_ptr<ArchiveStructure> structure = archive.jniLookup[lookup_id].lock();
+    std::shared_ptr<ArchiveStructure> structure = archive->jniLookup[lookup_id].lock();
     std::shared_ptr<Folder> folder = std::dynamic_pointer_cast<Folder>(structure);
     std::shared_ptr<File> file = std::dynamic_pointer_cast<File>(structure);
 
@@ -342,7 +344,7 @@ Java_com_example_turbokompresor1999_ProcessingActivity_00024DecompressionThread_
         //TODO: folder->unpack()
     } else if (file != nullptr) {
         file->unpack(utf_path,
-                     archive.archive_file,
+                     archive->archive_file,
                      abortingVariable,
                      false,
                      true,
@@ -354,3 +356,26 @@ Java_com_example_turbokompresor1999_ProcessingActivity_00024DecompressionThread_
 
     return success;
 }
+
+void reloadArchive() {
+    std::filesystem::path lastLoadPath = archive->load_path;
+    archive = std::make_unique<Archive>();
+    archive->load(lastLoadPath);
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_example_turbokompresor1999_ProcessingActivity_00024DeletionThread_deleteStructure(
+        JNIEnv *env, jobject thiz, jlong lookup_id)
+{
+    archiveOpPreparationCommon();
+
+    bool success = false;
+
+    archive->removeArchiveStruct((int64_t) lookup_id);
+    reloadArchive();
+    success = true;
+
+    return success;
+}
+
